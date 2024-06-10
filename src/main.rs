@@ -1,4 +1,6 @@
 use leptos::*;
+use tracing::Value;
+use web_sys::js_sys::Reflect::set;
 
 fn main() {
   console_error_panic_hook::set_once();
@@ -82,9 +84,79 @@ fn DynamicList(initial_length: usize) -> impl IntoView {
 }
 
 #[component]
+fn SelectOption(is: &'static str, value: ReadSignal<String>) -> impl IntoView {
+  view! {
+    <option
+      value=is
+      selected=move || value() == is
+    >
+      {is}
+    </option>
+  }
+}
+
+#[component]
+fn Select(options: Vec<&'static str>, value: ReadSignal<String>) -> impl IntoView {
+  let (value, set_value) = create_signal(value.get_untracked());
+  view! {
+    <select
+      on:change=move |e| {
+        let new_value = event_target_value(&e);
+        set_value(new_value);  
+      }
+      prop:value=value
+    >
+      { options.iter().map(|&is| view! { <SelectOption is=is value=value /> }).collect_view() }
+    </select>
+  }
+}
+
+#[component]
+fn TestForm() -> impl IntoView {
+  let (name, set_name) = create_signal("uncontrolled".to_string());
+  let (description, set_description) = create_signal("".to_string());
+  let (selected_option, _set_selected_option) = create_signal("one".to_string());
+  let input_element: NodeRef<html::Input> = create_node_ref();
+  let textarea_element: NodeRef<html::Textarea> = create_node_ref();
+  let options = vec!["one", "two", "three"];
+
+  let on_submit = move |ev: leptos::ev::SubmitEvent| {
+    ev.prevent_default();
+    let value = input_element()
+        .expect("<input> should be mounted")
+        .value();
+    set_name(value);
+
+    let value = textarea_element()
+        .expect("<input> should be mounted")
+        .value();
+      set_description(value);
+    };
+
+  view! {
+    <form on:submit=on_submit>
+      <input
+        type="text"
+        value=name
+        node_ref=input_element
+      />
+      <textarea
+        prop:value=description
+        node_ref=textarea_element
+      >
+        {description.get_untracked()}
+      </textarea>
+      <Select options=options value=selected_option />
+      <button type="submit">"Submit"</button>
+    </form>
+  }
+}
+
+#[component]
 fn App() -> impl IntoView {
   let (count, set_count) = create_signal(0);
   let (x, set_x) = create_signal(0);
+  let (name, set_name) = create_signal("Controlled".to_string());
 
   // Derived signal
   let double_count = move || count() * 2;
@@ -115,5 +187,11 @@ fn App() -> impl IntoView {
     <DynamicList initial_length=3 />
     <ProgressBar progress=count />
     <ProgressBar progress=Signal::derive(double_count) />
+    <input
+      type="text"
+      on:input=move |e| set_name(event_target_value(&e))
+      prop:value=name
+    />
+    <TestForm />
   }
 }
